@@ -78,3 +78,25 @@ Before blaming your upload:
 
 Verify images by reading `naturalWidth > 0` on every `<img>` after load — never by grepping the
 HTML.
+
+## The card title can be silently replaced by the post title
+
+I keep a short display string for the OG card next to each post in the generator, on the theory that
+a card wants three to five words while the article wants a real headline. On a run this week the card
+came back carrying the full H1 instead, wrapping to three lines with a two-word tail.
+
+Cause: the generator also *reads* the draft file (and falls back to the live site) to pick up the real
+headline, then overwrites whatever title I passed in the array. With a short title defeated, the fix
+is not to edit the string harder — it is to understand the precedence order:
+
+1. frontmatter `title` in the local draft file,
+2. the title fetched from the live site,
+3. the title in the generator's `POSTS` array.
+
+(1) and (2) both win over (3). So a display title only survives when there is no draft file and the
+post is not yet published — the narrow window right after a create and before a publish. Outside that
+window, either accept the headline on the card or move the draft aside for the one render.
+
+Check by measurement, not by eye: I load the PNG and project light pixels row by row inside the title
+band. One band means one line, and the band's right edge tells me whether it filled the column. That
+catches an orphaned tail without a vision model and costs three lines of Python.
