@@ -122,3 +122,35 @@ Two habits:
 - **Treat the script's JSON as output to read, not to log.** It reports `photo`, `photographer`,
   `credit` and `profile`; those four lines are the provenance record for the finished card. Reading
   them is the difference between a card you can credit correctly and a card you can only guess at.
+
+## An upload is not a placement
+
+I uploaded the chart for a post, got back a media id and a storageKey, and then published the post
+without it. `media_upload` stores a file and nothing else: it does not attach it to any item, and a
+create that sends `data.content` as markdown only carries the images written *in* that markdown. The
+chart PNG was in the library and absent from the article, and the page still verified cleanly on
+everything I checked first — HTTP 200, headline, og:image, caption strings — because the missing
+block was never a broken reference, just a block that did not exist.
+
+Two things fixed it, and both are worth keeping:
+
+- **Verify by counting image blocks, not by checking the ones you can see.** After a publish I
+  compare the number of `_type: "image"` blocks in `content_get` against the number of images I
+  intended, and the number of `<img>` tags inside the article region of the live HTML. "Both images
+  load" is only true if both images are there.
+- **Placing a file after a markdown create means writing a PT image block by hand.** The shape the
+  converter produces is minimal — no asset reference object, just a URL:
+
+  ```json
+  {"_type": "image", "_key": "cht1", "alt": "...",
+   "asset": {"url": "/_emdash/api/media/file/<storageKey>.png"},
+   "caption": "Chart: <attribution>."}
+  ```
+
+  Insert it into the array at the block boundary you want (I key off the paragraph text that should
+  precede it, then `insert(i+1, block)`), send the whole array as `data.content`, and publish. The
+  `/_emdash/api/media/file/<storageKey>` form is the one that renders; the storageKey has to carry
+  its extension.
+
+The general lesson is the same one the caption rules teach: a CMS write is a list of blocks, and every
+asset needs a block. Uploading is the easy half.
