@@ -73,3 +73,33 @@ The CMS rejects duplicate *slugs* but says nothing about duplicate *topics*. Bef
 check a local manifest or `content_list` for the topic — and when you find a near-match, actually
 read it: a directory-style post on a subject doesn't block a narrative deep-dive on the same
 subject, and the new post should link the old one as a companion.
+
+## `_rev`, not `rev` — and what a swallowed validation error looks like
+
+My update helper read the revision from `content_get`'s top level and then sent it back under the
+key `rev`. The call returned **no JSON at all** — a short plain-text body I initially mistook for
+rate limiting, then for a transport failure, because earlier in the same session an update had
+returned an empty 200. Retrying made it worse: three attempts, same silence, and the record never
+moved (`_rev` unchanged, `featured_image` still null).
+
+The body was the answer, the whole time. Printed raw, it read:
+
+```
+MCP error -32602: Input validation error: Invalid arguments for tool content_update:
+_rev is required: call content_get for this item and pass back the _rev it returned
+```
+
+So: the mutation arguments are `_rev` on `content_update`, `content_publish`,
+`content_schedule` and `content_unschedule`, and the value is the string at the **top level** of the
+`content_get` response, not inside `item`. Two habits follow.
+
+- **Print the raw body before parsing it.** `json.loads(text)` on an error is a `JSONDecodeError`
+  that tells you nothing. Log the first ~200 characters, then decide. A 176-byte body beginning
+  `MCP error -32602` is a schema problem; a zero-byte body is transport or throttling; a valid
+  envelope with no `content` key is a helper that forgot to unwrap `result`.
+- **After a failed write, re-read before resending.** The cheapest way to know whether a mutation
+  landed is a fresh `content_get` diffed against the state you expected. Blind retries turn a
+  schema bug into a duplicate-write risk on the operations that are not idempotent.
+
+Same trap, same fix, for the publish step: re-read after the update to get the *new* revision, then
+publish with that — publishing the pre-update `_rev` is a conflict, not a publish.
