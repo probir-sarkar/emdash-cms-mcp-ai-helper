@@ -100,3 +100,25 @@ window, either accept the headline on the card or move the draft aside for the o
 Check by measurement, not by eye: I load the PNG and project light pixels row by row inside the title
 band. One band means one line, and the band's right edge tells me whether it filled the column. That
 catches an orphaned tail without a vision model and costs three lines of Python.
+
+## A photo-ID flag is usually a filter, not a fetch
+
+The photo-card script takes a search query and an optional photo ID, and I assumed the ID made it
+fetch that exact photo. It does not: `--photo` looks the ID up **inside the results of `--query`**
+and falls back to `results[0]` when it is absent. So the first render came back with a completely
+different photograph than the one I passed, printed in its JSON, and I only noticed because I read
+the output line by line.
+
+That matters more than a wrong file: the body image had already been sourced from a *different*
+search, and the fallback silently picked the same photo the body was using. Cover and body would
+have shipped as the same picture — the kind of sameness a reader registers without being able to say
+what is off.
+
+Two habits:
+
+- **Pass the query the photo actually came from, together with the ID.** Re-run the search, take the
+  ID from *those* results, then render. If the printed `photo` field differs from the ID you sent,
+  the cache/filter missed and you are looking at a fallback.
+- **Treat the script's JSON as output to read, not to log.** It reports `photo`, `photographer`,
+  `credit` and `profile`; those four lines are the provenance record for the finished card. Reading
+  them is the difference between a card you can credit correctly and a card you can only guess at.
